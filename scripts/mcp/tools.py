@@ -1,0 +1,93 @@
+"""Model Context Protocol (MCP) tool adapters for Central Rental Research."""
+
+from scripts.domain.criteria import RentalFilter
+from scripts.domain.value_objects import PropertyCode
+from scripts.interfaces.provider import RentalProviderProtocol
+from scripts.providers.portalmg import PortalMGRentalProvider
+
+
+class PortalMGMcpAdapter:
+    """Adapts domain rental provider for consumption by MCP servers and tool registries."""
+
+    def __init__(self, provider: RentalProviderProtocol) -> None:
+        """Initialize adapter with an abstract rental provider."""
+        self._provider = provider
+
+    @classmethod
+    def create_default(cls) -> "PortalMGMcpAdapter":
+        """Factory constructor instantiating the default Portal Imóveis MG provider."""
+        default_provider = PortalMGRentalProvider.create_default()
+        return cls(provider=default_provider)
+
+    def _apply_constraints(
+        self,
+        target_filter: RentalFilter,
+        min_price: float,
+        max_price: float,
+        bedrooms: int,
+    ) -> RentalFilter:
+        """Apply numerical and budgetary constraints."""
+        working = target_filter
+        if bedrooms > 0:
+            working = working.with_bedrooms(bedrooms)
+        if max_price > 0.0 or min_price > 0.0:
+            working = working.with_price_range(min_price, max_price)
+        return working
+
+    def _assemble_filter(
+        self,
+        city_id: str,
+        neighborhood: str,
+        min_price: float,
+        max_price: float,
+        bedrooms: int,
+        page: int,
+    ) -> RentalFilter:
+        """Construct a validated RentalFilter from tool arguments."""
+        working = RentalFilter().with_page(page)
+        if city_id:
+            working = working.with_city(city_id)
+        if neighborhood:
+            working = working.with_neighborhood(neighborhood)
+        return self._apply_constraints(working, min_price, max_price, bedrooms)
+
+    def search_rentals(
+        self,
+        city_id: str = "",
+        neighborhood: str = "",
+        min_price: float = 0.0,
+        max_price: float = 0.0,
+        bedrooms: int = 0,
+        page: int = 1,
+    ) -> dict:
+        """Execute a rental property search for an MCP tool call."""
+        search_filter = self._assemble_filter(
+            city_id=city_id,
+            neighborhood=neighborhood,
+            min_price=min_price,
+            max_price=max_price,
+            bedrooms=bedrooms,
+            page=page,
+        )
+        search_result = self._provider.search_rentals(search_filter)
+        return search_result.to_dictionary()
+
+    def get_property_detail(self, property_code: str) -> dict:
+        """Retrieve complete property detail for an MCP tool call."""
+        code_vo = PropertyCode(property_code)
+        property_detail = self._provider.get_property_detail(code_vo)
+        return property_detail.to_dictionary()
+
+    def get_facets(self) -> dict:
+        """Retrieve available search facets for an MCP tool call."""
+        facet_collection = self._provider.get_facets()
+        return facet_collection.to_dictionary()
+
+    def get_provider_info(self) -> dict:
+        """Retrieve metadata about this rental provider adapter."""
+        name = self._provider.provider_name()
+        return {
+            "provider_name": name,
+            "coverage_region": "Vale do Aço (Timóteo, Coronel Fabriciano, Ipatinga)",
+            "supported_operations": ["search_rentals", "get_property_detail", "get_facets"],
+        }
