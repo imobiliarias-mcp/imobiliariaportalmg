@@ -57,6 +57,7 @@ def display_results(result) -> None:
         loc = listing.details.location.summary()
         price = listing.price().format_brl()
         print(f"[{ref}] {cat:<12} | {loc:<30} | {price}/mês")
+        print(f"  Link: {listing.details.url}")
     print("-" * 80)
 
 

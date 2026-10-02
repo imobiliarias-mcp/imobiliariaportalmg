@@ -2,12 +2,14 @@
 
 import json
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
+from urllib.parse import urlencode, urljoin, urlsplit
+
 from bs4 import BeautifulSoup, Tag
+
 from scripts.domain.collections import (
     CategoryItem,
     CityItem,
-    FacetCollection,
     NeighborhoodItem,
     RentalSearchResult,
 )
@@ -28,6 +30,47 @@ from scripts.domain.value_objects import ListingPrice, PropertyCode
 
 class SearchResultParser:
     """Parses search results HTML into domain collections."""
+
+    def __init__(
+        self, public_base_url: str = "https://www.imobiliariaportalmg.com.br"
+    ) -> None:
+        """Configure the public property-link base URL."""
+        parsed_url = urlsplit(public_base_url.strip())
+        if parsed_url.scheme not in {"http", "https"} or not parsed_url.netloc:
+            raise ValueError("Public base URL must use HTTP(S) and include a host")
+        if parsed_url.query or parsed_url.fragment:
+            raise ValueError("Public base URL cannot contain a query or fragment")
+        self._public_base_url = public_base_url.rstrip("/") + "/"
+
+    def _resolve_public_url(self, href: str, property_id: str) -> str:
+        """Resolve a listing link and reject unsafe schemes with property context."""
+        relative_url = href or f"imoveis_detalhes.php?id={property_id}"
+        try:
+            public_url = urljoin(self._public_base_url, relative_url.strip())
+            parsed_url = urlsplit(public_url)
+        except ValueError as exc:
+            raise ParsingException(
+                f"Invalid public property URL for listing {property_id}: {href}"
+            ) from exc
+        if not self._is_property_url(parsed_url, property_id):
+            raise ParsingException(
+                f"Invalid public property URL for listing {property_id}: {href}"
+            )
+        return public_url
+
+    def _is_property_url(self, parsed_url, property_id: str) -> bool:
+        if parsed_url.scheme not in {"http", "https"} or not parsed_url.netloc:
+            return False
+        if parsed_url.netloc.lower() != urlsplit(self._public_base_url).netloc.lower():
+            return False
+        expected_path = urlsplit(self._public_base_url).path.rstrip("/")
+        if parsed_url.path != f"{expected_path}/imoveis_detalhes.php":
+            return False
+        query_parameters = dict(
+            parameter.split("=", 1) if "=" in parameter else (parameter, "")
+            for parameter in parsed_url.query.split("&")
+        )
+        return query_parameters.get("id") == property_id
 
     def _extract_total_count(self, soup: BeautifulSoup) -> int:
         """Extract total listing count from header quantity."""
@@ -76,9 +119,16 @@ class SearchResultParser:
         link_el = card.find(class_="li-imovel__link-informacoes")
         category = cat_el.text.strip() if cat_el else ""
         thumb = img_el.get("src", "") if img_el else ""
-        detail = link_el.get("href", "") if link_el else f"imoveis_detalhes.php?id={identity.property_id}"
+        detail = link_el.get("href", "") if link_el else ""
+        public_url = self._resolve_public_url(detail, identity.property_id)
         core = ListingCore(identity=identity, financials=financials)
-        details = ListingDetails(location=location, category=category, thumbnail_url=thumb, detail_url=detail)
+        details = ListingDetails(
+            location=location,
+            category=category,
+            thumbnail_url=thumb,
+            detail_url=detail or f"imoveis_detalhes.php?id={identity.property_id}",
+            url=public_url,
+        )
         return RentalPropertySummary(core=core, details=details)
 
     def parse_search_response(
@@ -102,6 +152,26 @@ class SearchResultParser:
 
 class PropertyDetailParser:
     """Parses property detail page HTML and microdata."""
+
+    def __init__(
+        self, public_base_url: str = "https://www.imobiliariaportalmg.com.br"
+    ) -> None:
+        """Configure the public origin used for serialized property URLs."""
+        parsed_url = urlsplit(public_base_url.strip())
+        if parsed_url.scheme not in {"http", "https"} or not parsed_url.netloc:
+            raise ValueError("Public base URL must use HTTP(S) and include a host")
+        if parsed_url.query or parsed_url.fragment:
+            raise ValueError("Public base URL cannot contain a query or fragment")
+        self._public_base_url = public_base_url.rstrip("/") + "/"
+
+    def _relative_detail_url(self, property_id: str) -> str:
+        """Build the documented relative detail route for a property."""
+        return f"imoveis_detalhes.php?{urlencode({'id': property_id})}"
+
+    def _resolve_public_url(self, property_id: str) -> str:
+        """Build a public property URL without using the transport origin."""
+        relative_path = self._relative_detail_url(property_id)
+        return urljoin(self._public_base_url, relative_path)
 
     def _extract_json_ld(self, soup: BeautifulSoup) -> Dict[str, Any]:
         """Extract and parse Schema.org JSON-LD microdata."""
@@ -187,7 +257,15 @@ class PropertyDetailParser:
         thumb = photos[0] if photos else ""
         location = ListingLocation(neighborhood="", city="")
         core = ListingCore(identity=identity, financials=financials)
-        details = ListingDetails(location=location, category="", thumbnail_url=thumb)
+        relative_url = self._relative_detail_url(property_id)
+        public_url = self._resolve_public_url(property_id)
+        details = ListingDetails(
+            location=location,
+            category="",
+            thumbnail_url=thumb,
+            detail_url=relative_url,
+            url=public_url,
+        )
         summary = RentalPropertySummary(core=core, details=details)
         profile = DetailedProfile(specs=specs, amenities=amenities, photos=photos)
         return RentalPropertyDetail(summary=summary, profile=profile)

@@ -55,6 +55,14 @@ class RentalQueryBuilder:
         params.update(self._build_property_params(search_filter))
         return params
 
+    def public_base_url(self) -> str:
+        """Return the configured public base, independent of transport URLs."""
+        return self._config.public_base_url
+
+    def build_detail_url(self, property_id: str) -> str:
+        """Construct the configured API detail endpoint URL."""
+        return self._config.detail_url(property_id)
+
     def build_search_url(self, search_filter: RentalFilter) -> str:
         """Construct full search endpoint URL with encoded parameters."""
         params = self.build_query_parameters(search_filter)

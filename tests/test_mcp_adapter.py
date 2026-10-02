@@ -32,7 +32,10 @@ def test_mcp_adapter_search_rentals():
     assert isinstance(result_dict, dict)
     assert result_dict["total_count"] == 2
     assert len(result_dict["listings"]) == 1
-    assert result_dict["listings"][0]["reference"] == "608"
+    listing = result_dict["listings"][0]
+    assert listing["reference"] == "608"
+    assert listing["detail_url"] == "imoveis_detalhes.php?id=608"
+    assert listing["url"] == "https://www.imobiliariaportalmg.com.br/imoveis_detalhes.php?id=608"
 
 
 def test_mcp_adapter_property_detail():

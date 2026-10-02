@@ -223,7 +223,8 @@ Listing cards are rendered inside `<ul class="lista-imoveis">` with item contain
 | `suites` | `li-imovel__caracteristica` with `icone--suites` | `0` (or `None`) |
 | `garage_slots` | `li-imovel__caracteristica` with `icone--garagens` | `0` (or `None`) |
 | `area_text` | `li-imovel__caracteristica` with `icone--area` | `"45.00 m²"` |
-| `detail_url` | Relative to absolute (`https://www.imobiliariaportalmg.com.br/imoveis_detalhes.php?id=547`) | Full URL string |
+| `detail_url` | Original card `href` (relative or absolute) | Preserved source link for backwards compatibility |
+| `url` | Resolve the card `href` against the configured public base; missing links fall back to `/imoveis_detalhes.php?id={property_id}` | Absolute public property URL; only the configured host's `/imoveis_detalhes.php?id={property_id}` route is accepted |
 
 ---
 

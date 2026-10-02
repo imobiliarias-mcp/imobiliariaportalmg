@@ -66,6 +66,7 @@ print(f"Total matching listings: {results.total_count()}")
 
 for listing in results:
     print(f"[{listing.ref()}] {listing.details.category} - {listing.price().format_brl()}")
+    print(f"  Link: {listing.details.url}")
 
 # Get full property details
 detail = client.get_details("608")

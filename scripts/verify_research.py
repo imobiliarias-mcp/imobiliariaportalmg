@@ -35,6 +35,7 @@ def test_rental_search(client: PortalMGRentalClient) -> None:
     assert results.total_count() > 0, "No rental listings found for Timóteo."
     for item in list(results)[:3]:
         print(f"  [{item.ref()}] {item.details.category:<12} | {item.details.location.summary():<25} | {item.price().format_brl()}")
+        print(f"    Link: {item.details.url}")
 
 
 def test_filter_combinations(client: PortalMGRentalClient) -> None:

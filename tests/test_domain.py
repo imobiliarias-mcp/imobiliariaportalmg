@@ -123,7 +123,12 @@ def test_rental_search_result_pagination_math():
         identity=ListingIdentity("1", PropertyCode("1")),
         financials=ListingFinancials(ListingPrice(1000.0)),
     )
-    details = ListingDetails(ListingLocation("Centro", "Timóteo"), "Casas")
+    details = ListingDetails(
+        ListingLocation("Centro", "Timóteo"),
+        "Casas",
+        detail_url="imoveis_detalhes.php?id=1",
+        url="https://www.imobiliariaportalmg.com.br/imoveis_detalhes.php?id=1",
+    )
     summary = RentalPropertySummary(core=core, details=details)
 
     res = RentalSearchResult(items=[summary], total_count=25, current_page=1, page_size=10)
@@ -135,6 +140,34 @@ def test_rental_search_result_pagination_math():
     assert d["total_count"] == 25
     assert d["total_pages"] == 3
     assert len(d["listings"]) == 1
+    assert details.detail_url == "imoveis_detalhes.php?id=1"
+    assert details.url == "https://www.imobiliariaportalmg.com.br/imoveis_detalhes.php?id=1"
+    assert set(d["listings"][0]) == {
+        "property_id",
+        "reference",
+        "category",
+        "neighborhood",
+        "city",
+        "state",
+        "rental_price",
+        "rental_price_formatted",
+        "thumbnail_url",
+        "detail_url",
+        "url",
+    }
+
+
+def test_legacy_summary_rejects_serialization_without_public_url():
+    core = ListingCore(
+        identity=ListingIdentity("608", PropertyCode("608")),
+        financials=ListingFinancials(ListingPrice(1000.0)),
+    )
+    details = ListingDetails(
+        ListingLocation("Centro", "Timóteo"), "Casas", detail_url="imoveis_detalhes.php?id=608"
+    )
+    summary = RentalPropertySummary(core=core, details=details)
+    with pytest.raises(ValidationException, match="public property URL.*608"):
+        summary.to_dictionary()
 
 
 def test_facet_collection_dictionary():

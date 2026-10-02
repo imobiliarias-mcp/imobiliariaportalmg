@@ -47,7 +47,7 @@ class PortalMGRentalProvider(RentalProviderProtocol):
         """Search rental listings using criteria filter."""
         search_url = self._builder.build_search_url(search_filter)
         html_content = self._transport.get_text(search_url)
-        parser = SearchResultParser()
+        parser = SearchResultParser(public_base_url=self._builder.public_base_url())
         page = search_filter.constraints.pagination.page_number()
         size = search_filter.constraints.pagination.page_size()
         return parser.parse_search_response(html_content, current_page=page, page_size=size)
@@ -55,9 +55,9 @@ class PortalMGRentalProvider(RentalProviderProtocol):
     def get_property_detail(self, code: PropertyCode) -> RentalPropertyDetail:
         """Retrieve full details for a single property by code."""
         code_str = code.value()
-        detail_url = f"https://www.imobiliariaportalmg.com.br/imoveis_detalhes.php?id={code_str}"
+        detail_url = self._builder.build_detail_url(code_str)
         html_content = self._transport.get_text(detail_url)
-        parser = PropertyDetailParser()
+        parser = PropertyDetailParser(public_base_url=self._builder.public_base_url())
         return parser.parse_detail_response(html_content, property_id=code_str)
 
     def get_facets(self) -> FacetCollection:

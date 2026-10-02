@@ -6,7 +6,7 @@ from scripts.client.parsers import (
     PropertyDetailParser,
     SearchResultParser,
 )
-from scripts.domain.exceptions import PropertyNotFoundException
+from scripts.domain.exceptions import ParsingException, PropertyNotFoundException
 
 SAMPLE_SEARCH_HTML = """
 <div class="imoveis-listagem__header-quantidade">
@@ -149,3 +149,80 @@ def test_facet_parser():
     assert len(categories) == 1
     assert categories[0].name == "Apartamento Padrão"
     assert categories[0].category_id == "8"
+
+
+def _parse_search_with_detail_href(href: str, public_base_url: str = "https://www.imobiliariaportalmg.com.br"):
+    marker = 'href="imoveis_detalhes.php?id=608">Mais'
+    html = SAMPLE_SEARCH_HTML.replace(marker, f'href="{href}">Mais')
+    parser = SearchResultParser(public_base_url=public_base_url)
+    result = parser.parse_search_response(html)
+    return next(iter(result))
+
+
+@pytest.mark.parametrize(
+    ("href", "expected_url"),
+    [
+        (
+            "https://www.imobiliariaportalmg.com.br/imoveis_detalhes.php?id=608",
+            "https://www.imobiliariaportalmg.com.br/imoveis_detalhes.php?id=608",
+        ),
+        (
+            "imoveis_detalhes.php?id=608&utm_campaign=rentals",
+            "https://www.imobiliariaportalmg.com.br/imoveis_detalhes.php?id=608&utm_campaign=rentals",
+        ),
+        (
+            "//www.imobiliariaportalmg.com.br/imoveis_detalhes.php?id=608",
+            "https://www.imobiliariaportalmg.com.br/imoveis_detalhes.php?id=608",
+        ),
+    ],
+)
+def test_search_resolves_property_links_and_preserves_legacy_path(href, expected_url):
+    listing = _parse_search_with_detail_href(href)
+    assert listing.details.url == expected_url
+    assert listing.details.detail_url == href
+
+
+def test_search_uses_configured_public_base_for_relative_property_link():
+    listing = _parse_search_with_detail_href(
+        "imoveis_detalhes.php?id=608", "https://public.example"
+    )
+    assert listing.details.url == "https://public.example/imoveis_detalhes.php?id=608"
+    assert listing.details.detail_url == "imoveis_detalhes.php?id=608"
+
+
+def test_search_uses_documented_detail_route_when_information_link_is_missing():
+    marker = '<div class="li-imovel__mais-informacoes">\n                <a class="li-imovel__link-informacoes" href="imoveis_detalhes.php?id=608">Mais</a>\n            </div>'
+    html = SAMPLE_SEARCH_HTML.replace(marker, "")
+    listing = next(iter(SearchResultParser().parse_search_response(html)))
+    assert listing.details.detail_url == "imoveis_detalhes.php?id=608"
+    assert listing.details.url == "https://www.imobiliariaportalmg.com.br/imoveis_detalhes.php?id=608"
+
+
+def test_search_rejects_invalid_property_scheme_with_listing_context():
+    with pytest.raises(ParsingException, match="608"):
+        _parse_search_with_detail_href("javascript:alert(1)")
+
+
+def test_search_wraps_malformed_authority_with_listing_context():
+    with pytest.raises(ParsingException, match="608"):
+        _parse_search_with_detail_href("https://[::1")
+
+
+@pytest.mark.parametrize(
+    "href",
+    [
+        "https://www.imobiliariaportalmg.com.br/imoveis_listagem.php?id=608",
+        "https://www.imobiliariaportalmg.com.br/ajax.php?function=get_bairros_json",
+        "https://cdn.example/thumb_608.jpg",
+    ],
+)
+def test_search_rejects_non_property_routes_with_listing_context(href):
+    with pytest.raises(ParsingException, match="608"):
+        _parse_search_with_detail_href(href)
+
+
+def test_search_serializes_public_url_without_changing_detail_url():
+    listing = next(iter(SearchResultParser().parse_search_response(SAMPLE_SEARCH_HTML)))
+    serialized = listing.to_dictionary()
+    assert serialized["url"] == "https://www.imobiliariaportalmg.com.br/imoveis_detalhes.php?id=608"
+    assert serialized["detail_url"] == "imoveis_detalhes.php?id=608"

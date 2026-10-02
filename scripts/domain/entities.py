@@ -2,6 +2,8 @@
 
 from dataclasses import dataclass
 from typing import List, Optional
+
+from scripts.domain.navigation import ListingNavigation
 from scripts.domain.value_objects import ListingPrice, PropertyCode
 
 
@@ -59,14 +61,44 @@ class ListingCore:
     financials: ListingFinancials
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, init=False)
 class ListingDetails:
-    """Supplementary descriptive attributes."""
+    """Descriptive attributes with compatible navigation accessors."""
 
     location: ListingLocation
     category: str
-    thumbnail_url: str = ""
-    detail_url: str = ""
+    thumbnail_url: str
+    _navigation: ListingNavigation
+
+    def __init__(
+        self,
+        location: ListingLocation,
+        category: str,
+        thumbnail_url: str = "",
+        detail_url: str = "",
+        url: str = "",
+        navigation: ListingNavigation | None = None,
+    ) -> None:
+        """Keep the legacy constructor while composing navigation fields."""
+        selected_navigation = navigation or ListingNavigation(detail_url, url)
+        object.__setattr__(self, "location", location)
+        object.__setattr__(self, "category", category)
+        object.__setattr__(self, "thumbnail_url", thumbnail_url)
+        object.__setattr__(self, "_navigation", selected_navigation)
+
+    @property
+    def detail_url(self) -> str:
+        """Expose the legacy source detail path."""
+        return self._navigation.detail_url
+
+    @property
+    def url(self) -> str:
+        """Expose the normalized public property URL."""
+        return self._navigation.url
+
+    def validate_public_url(self, property_id: str) -> None:
+        """Validate the composed public link for its property identifier."""
+        self._navigation.validate_for(property_id)
 
 
 @dataclass(frozen=True)
@@ -88,8 +120,13 @@ class RentalPropertySummary:
         """Return rental price."""
         return self.core.financials.rental_price
 
+    def _validate_public_url(self) -> None:
+        """Reject missing or non-property public URLs before serialization."""
+        self.details.validate_public_url(self.id())
+
     def to_dictionary(self) -> dict:
         """Convert summary into dictionary for MCP tools."""
+        self._validate_public_url()
         return {
             "property_id": self.core.identity.property_id,
             "reference": self.core.identity.code_str(),
@@ -101,6 +138,7 @@ class RentalPropertySummary:
             "rental_price_formatted": self.core.financials.rental_price.format_brl(),
             "thumbnail_url": self.details.thumbnail_url,
             "detail_url": self.details.detail_url,
+            "url": self.details.url,
         }
 
 
