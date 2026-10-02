@@ -9,6 +9,7 @@ The portal renders server-side HTML (charset `UTF-8`) served by an Apache web se
 ### 1.1 Authentication & Security Requirements
 - **Authentication**: **None required**. All rental searches, filter queries, pagination offsets, property details, and AJAX taxonomy endpoints are publicly accessible without authentication, API keys, session tokens, or CSRF restrictions.
 - **Session Cookies**: The server issues a standard `PHPSESSID` cookie, but state is not required; queries are completely stateless.
+- **Transport Failures**: The client raises `NetworkTransportException` for HTTP error statuses and network failures, preserving the original `httpx.HTTPError` as the cause. Failed GET or AJAX POST requests are not parsed as empty search results.
 - **Request Headers**: Standard desktop `User-Agent` is recommended. The AJAX endpoints accept standard `application/x-www-form-urlencoded` payloads and optionally acknowledge `X-Requested-With: XMLHttpRequest`.
 - **HTTP Methods**:
   - Search & Property Details: `GET`
