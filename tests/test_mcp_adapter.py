@@ -51,6 +51,7 @@ def test_mcp_adapter_property_detail():
     assert detail_dict["reference"] == "608"
     assert detail_dict["rental_price"] == 1980.0
     assert detail_dict["bedrooms"] == 3
+    assert "condo_fee" in detail_dict
 
 
 def test_mcp_adapter_facets():
