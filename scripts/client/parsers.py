@@ -2,7 +2,7 @@
 
 import json
 import re
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 from urllib.parse import urlencode, urljoin, urlsplit
 
 from bs4 import BeautifulSoup, Tag
@@ -208,19 +208,25 @@ class PropertyDetailParser:
             area_text=f"{area_m.group(1)} m²" if area_m else "",
         )
 
+    def _extract_fee_from_text(self, text: str, pattern: str) -> Optional[ListingPrice]:
+        """Extract monetary fee from text using regex pattern."""
+        match = re.search(pattern, text, re.I)
+        if not match:
+            return None
+        clean = match.group(1).replace(".", "").replace(",", ".")
+        return ListingPrice(float(clean))
+
     def _extract_financials(self, soup: BeautifulSoup, json_ld: Dict[str, Any]) -> ListingFinancials:
-        """Extract price and condo fee."""
+        """Extract price, condo fee, and IPTU."""
         val_el = soup.find(class_="imovel__valor-valor")
         amount = 0.0
         if val_el:
             cleaned = re.sub(r"[^\d,]", "", val_el.text.strip()).replace(",", ".")
             amount = float(cleaned) if cleaned else 0.0
-        condo_fee = None
-        condo_m = re.search(r"Condomínio:\s*R\$\s*([\d.,]+)", soup.get_text(), re.I)
-        if condo_m:
-            condo_clean = condo_m.group(1).replace(".", "").replace(",", ".")
-            condo_fee = ListingPrice(float(condo_clean))
-        return ListingFinancials(rental_price=ListingPrice(amount), condo_fee=condo_fee)
+        text = soup.get_text()
+        condo_fee = self._extract_fee_from_text(text, r"Condomínio:\s*R\$\s*([\d.,]+)")
+        iptu = self._extract_fee_from_text(text, r"IPTU:\s*R\$\s*([\d.,]+)")
+        return ListingFinancials(rental_price=ListingPrice(amount), condo_fee=condo_fee, iptu=iptu)
 
     def _extract_amenities(self, soup: BeautifulSoup, json_ld: Dict[str, Any]) -> List[str]:
         """Extract amenity features."""

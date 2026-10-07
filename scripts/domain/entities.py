@@ -183,4 +183,9 @@ class RentalPropertyDetail:
             if self.summary.core.financials.condo_fee
             else None
         )
+        data["iptu"] = (
+            self.summary.core.financials.iptu.amount()
+            if self.summary.core.financials.iptu
+            else None
+        )
         return data

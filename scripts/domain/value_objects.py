@@ -41,6 +41,10 @@ class ListingPrice:
         """Return numeric price value."""
         return self._amount
 
+    def value(self) -> float:
+        """Alias returning numeric price value."""
+        return self._amount
+
     def format_brl(self) -> str:
         """Format price as Brazilian Real string."""
         formatted = f"{self._amount:,.2f}"

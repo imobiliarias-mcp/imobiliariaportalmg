@@ -70,6 +70,7 @@ SAMPLE_DETAIL_HTML = """
     <li>Garagens: 2</li>
     <li>Área útil: 180.00 m²</li>
     <li>Condomínio: R$ 250,00</li>
+    <li>IPTU: R$ 85,00</li>
 </ul>
 <ul class="imovel__galeria">
     <li><a class="imovel__foto-link" href="https://s3.amazonaws.com/test/photo1.jpg">Photo 1</a></li>
@@ -127,6 +128,9 @@ def test_property_detail_parser():
     assert detail.profile.specs.area_text == "180.00 m²"
     assert "Churrasqueira" in detail.profile.amenities
     assert len(detail.profile.photos) == 2
+    assert detail.summary.core.financials.iptu is not None
+    assert detail.summary.core.financials.iptu.amount() == 85.0
+    assert detail.to_dictionary()["iptu"] == 85.0
 
 
 def test_property_detail_not_found():
